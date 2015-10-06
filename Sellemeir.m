@@ -27,3 +27,4 @@ end
 F = (T-24.5)*(T+570.5);
 n_sq = A1 + (A2+B1*F)/(lambda^2 - A3+B2*F) + B3*F - A4*lambda^2;
 n_b = sqrt(n_sq);
+end
