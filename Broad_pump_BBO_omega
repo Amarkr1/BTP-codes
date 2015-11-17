@@ -1,0 +1,85 @@
+% syms idler signal
+clear
+close all
+Y=0.04822; %value of gamma can be controlled to adjust the pump bandwidth
+
+v_p = 181.4; %v_p = 181.4 mm/us
+v_i = 182.6; %v_i = 182.6 mm/us
+v_s = 179.5; %v_s = 179.5 mm/us
+
+k1p  = 1/v_p
+k1i  = 1/v_i
+k1s  = 1/v_s
+
+c = 3e8; %um/us
+
+pump_wave = 0.8 ;%um
+signal_wave = 2*pump_wave;%um
+np = Sellemeir_BBO (pump_wave);
+[ni,ns] = Sellemeir_BBO (signal_wave);% [no,ne]
+velocity_pump = c/np
+
+s0 = signal_wave; %um
+ws0 = 2*pi*c/(s0);
+i0 = signal_wave;
+wi0 = 2*pi*c/(i0);
+
+L = 2.6;%mm
+
+central = s0;
+shift = 0.15;
+low = s0 - shift;
+high = s0 + shift;
+signal = linspace(low,high,100);
+idler = linspace(low,high,100);
+
+% alpha = zeros(length(signal),length(idler));
+
+sigma = 1e3/sqrt(-Y*L^2*(k1p-k1s)*(k1p-k1i))
+
+for j = 1: length(signal)
+    for k = 1: length(idler)
+        kp = 2*pi*np*( 1/idler(k) + 1/signal(j));
+        ks = 2*pi*ns/signal(j);
+        ki = 2*pi*ni/idler(k);
+        delta_k = kp-ks-ki;
+        phi(j,k) = exp(-Y*1e-6*L^2*((2*pi*c/signal(j)-ws0)*(k1p-k1s)+((2*pi*c/idler(k)-wi0)*(k1p-k1i)))^2)*exp(-i*(L/2)*(delta_k));
+        
+%         [nso,nse] = Sellemeir_BBO (signal(j));
+%         [nio,nie] = Sellemeir_BBO (idler(k));
+        omega_s = 2*pi*c/(signal(j))-ws0;
+        omega_i = 2*pi*c/(idler(k))-wi0;
+        alpha(j,k) = exp(-((omega_s+omega_i)/sigma)^2);
+    end
+end
+colormap gray
+subplot 131
+imagesc(signal,idler,alpha)
+title('Pump Envelope')
+xlabel('Signal (\mu m)');
+ylabel('Idler (\mu m)');
+set(gca,'XDir','reverse')
+
+subplot 132
+Phase = abs(phi);
+imagesc(signal,idler,Phase)
+title('Phase Matching')
+xlabel('Signal (\mu m)');
+ylabel('Idler (\mu m)');
+set(gca,'XDir','reverse')
+
+subplot 133
+F = Phase.*alpha;
+sum1 = sum(F);
+sum2 = sum(sum1);
+F = F/sum2;
+S = F.^2;
+imagesc(signal,idler,S)
+title('Spectral Density')
+xlabel('Signal (\mu m)');
+ylabel('Idler (\mu m)');
+set(gca,'XDir','reverse')
+
+%Schmidt decomposition
+[U,S,V] = svd(F);
+diag(S)
