@@ -1,8 +1,9 @@
-pump = 519;
-signal = 1050;
+pump =800;
+signal = 1600;
 c = 3e8;
-L = 1e3;%mm
-[w,h,diff] = waveguide_design(pump,50,signal,L);
+L = 2.6;%mm
+[w,h,diff,plt_p,plt_s,plt_i] = waveguide_design2(pump,3.8095e+07,signal,L);
+
 [M,I] = min(diff(:));
 [I_row, I_col] = ind2sub(size(diff),I)
 width_min = w(I_row)
@@ -35,8 +36,8 @@ slope_signal = pwg_s(1);
 neff_central_signal = calc_neff(width_min,height_min,signal,'e');
 
 %idler
-idler = signal - pump;
-% lambda_i = lambda_s - lambda_p; %value of lambda is in nm
+idler = (signal*pump)/(signal - pump);
+% lambda_i = (lambda_p*lambda_s)/(lambda_s - lambda_p); %value of lambda is in nm
 lambda_i = linspace(idler-4,idler+4,5); %value of lambda is in nm
 vector_length_p = size(lambda_i);
 neff = zeros(1,vector_length_p(2));
@@ -51,24 +52,29 @@ neff_central_idler = calc_neff(width_min,height_min,idler,'o');
 
 
 %inverse of group velocities
-k_dash_pump = (neff_central_pump/c1) - ((slope_pump)/(c1*((1/pump) + (slope_pump/neff_central_pump))));
-k_dash_signal = (neff_central_signal/c1) - ((slope_signal)/(c1*((1/signal) + (slope_signal/neff_central_signal))));
-k_dash_idler = (neff_central_idler/c1) - ((slope_idler)/(c1*((1/idler) + (slope_idler/neff_central_idler))));
+% k_dash_pump = (neff_central_pump/c1) - ((slope_pump)/(c1*((1/pump) + (slope_pump/neff_central_pump))));
+% k_dash_signal = (neff_central_signal/c1) - ((slope_signal)/(c1*((1/signal) + (slope_signal/neff_central_signal))));
+% k_dash_idler = (neff_central_idler/c1) - ((slope_idler)/(c1*((1/idler) + (slope_idler/neff_central_idler))));
 
+c1 = 3e2; %speed of light in mm/us
+k_dash_pump = (neff_central_pump/c1) - ((slope_pump*pump)/c1);
+k_dash_signal = (neff_central_signal/c1) - ((slope_signal*signal)/c1);
+k_dash_idler = (neff_central_idler/c1) - ((slope_idler*idler)/c1);
 
 Y=0.04822; %value of gamma can be controlled to adjust the pump bandwidth
 
 pump_wave = pump/1000 ;%um
 signal_wave = signal/1000;%um
+idler_wave = idler/1000;%um
 
 np = neff_central_pump;
 ni = neff_central_idler;
-ns = neff_central_idler;
+ns = neff_central_signal;
 
-velocity_pump = c/np;
-k1p  = k_dash_pump;
-k1i  = k_dash_idler;
-k1s  = k_dash_signal;
+% velocity_pump = c/np;
+k1p  = k_dash_pump
+k1i  = k_dash_idler
+k1s  = k_dash_signal
 
 vgp = 1/k1p
 vgi = 1/k1i
@@ -77,7 +83,7 @@ vgs = 1/k1s
 
 s0 = signal_wave; %um
 ws0 = 2*pi*c/(s0);
-i0 = signal_wave;
+i0 = idler_wave;
 wi0 = 2*pi*c/(i0);
 
 central = s0;
@@ -89,27 +95,30 @@ idler = linspace(low,high,100);
 
 % alpha = zeros(length(signal),length(idler));
 
-sigma = 1e3/sqrt(-Y*L^2*(k1p-k1s)*(k1p-k1i))
-
+% sigma = 1e3/sqrt(-Y*L^2*(k1p-k1s)*(k1p-k1i))
+signma = 3.8095e+07;
+phi = zeros(length(signal),length(idler));
+alpha = zeros(length(signal),length(idler));
 for j = 1: length(signal)
     for k = 1: length(idler)
         kp = 2*pi*np*( 1/idler(k) + 1/signal(j));
         ks = 2*pi*ns/signal(j);
         ki = 2*pi*ni/idler(k);
         delta_k = kp-ks-ki;
-        phi(j,k) = exp(-Y*1e-6*L^2*((2*pi*c/signal(j)-ws0)*(k1p-k1s)+((2*pi*c/idler(k)-wi0)*(k1p-k1i)))^2)*exp(-i*(L/2)*(delta_k));
+        phi(j,k) = double(exp(-Y*1e-6*L^2*((2*pi*c/signal(j)-ws0)*(k1p-k1s)+((2*pi*c/idler(k)-wi0)*(k1p-k1i)))^2)*exp(-i*(L/2)*(delta_k)));
         
 %         [nso,nse] = Sellemeir_BBO (signal(j));
 %         [nio,nie] = Sellemeir_BBO (idler(k));
-        omega_s = 2*pi*c/(signal(j))-ws0;
-        omega_i = 2*pi*c/(idler(k))-wi0;
-        alpha(j,k) = exp(-((omega_s+omega_i)/sigma)^2);
+        omega_s = (2*pi*c/signal(j))-ws0;
+        omega_i = (2*pi*c/idler(k))-wi0;
+        alpha(j,k) = double( exp(-((omega_s+omega_i)/signma)^2));
     end
 end
 colormap gray
 subplot 131
+% alph = double(alpha);
 imagesc(signal,idler,alpha)
-tt=title('Pump Envelope')
+tt=title('Pump Envelope');
 xx = xlabel('Signal (\mu m)');
 yy = ylabel('Idler (\mu m)');
 set(xx, 'FontSize', 14);
@@ -119,9 +128,9 @@ set(gca,'XDir','reverse')
 set(gca, 'FontSize', 14);
 
 subplot 132
-Phase = abs(phi);
+Phase = (abs(phi));
 imagesc(signal,idler,Phase)
-tt=title('Phase Matching')
+tt=title('Phase Matching');
 xx=xlabel('Signal (\mu m)');
 yy=ylabel('Idler (\mu m)');
 set(gca,'XDir','reverse')
@@ -131,13 +140,13 @@ set(tt, 'FontSize', 14);
 set(yy, 'FontSize', 14);
 
 subplot 133
-F = Phase.*alpha;
+F = (Phase.*alpha);
 sum1 = sum(F);
 sum2 = sum(sum1);
 F = F/sum2;
 S = F.^2;
 imagesc(signal,idler,S)
-tt=title('Spectral Density')
+tt=title('Spectral Density');
 xx=xlabel('Signal (\mu m)');
 yy=ylabel('Idler (\mu m)');
 set(gca,'XDir','reverse')
@@ -146,5 +155,5 @@ set(xx, 'FontSize', 14);
 set(tt, 'FontSize', 14);
 set(yy, 'FontSize', 14);
 %Schmidt decomposition
-[U,S,V] = svd(F);
-diag(S);
+% [U,S,V] = svd(F);
+% diag(S);
